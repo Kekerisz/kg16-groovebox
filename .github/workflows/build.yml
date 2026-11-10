@@ -12,7 +12,7 @@ env:
 jobs:
   mac:
     name: macOS (VST3 + AU, Intel + Apple Silicon)
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +52,7 @@ jobs:
         run: nuget install Microsoft.Web.WebView2 -Version 1.0.1901.177 -OutputDirectory "$env:GITHUB_WORKSPACE\nuget"
 
       - name: Configure
-        run: cmake -B build -G "Visual Studio 17 2022" -A x64 -DJUCE_WEBVIEW2_PACKAGE_LOCATION="$env:GITHUB_WORKSPACE\nuget"
+        run: cmake -B build -A x64 -DJUCE_WEBVIEW2_PACKAGE_LOCATION="$env:GITHUB_WORKSPACE\nuget"
 
       - name: Build
         run: cmake --build build --config Release --target KG16_VST3 KG16_Standalone -j 4
