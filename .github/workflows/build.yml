@@ -69,7 +69,8 @@ jobs:
 
   release:
     name: Publish release
-    if: startsWith(github.ref, 'refs/tags/v')
+    # a version tag, or a push whose commit message contains [release], publishes v<KG16_VERSION>
+    if: startsWith(github.ref, 'refs/tags/v') || contains(github.event.head_commit.message, '[release]')
     needs: [ mac, windows ]
     runs-on: ubuntu-latest
     permissions:
@@ -80,6 +81,13 @@ jobs:
           path: dist
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', env.KG16_VERSION) }}
+          name: KG-16 Groovebox ${{ env.KG16_VERSION }}
+          target_commitish: ${{ github.sha }}
+          body: |
+            Mac: KG16-Groovebox-Mac.pkg (VST3 + AU + önálló program, Intel és Apple Silicon).
+            Windows: KG16-Groovebox-Windows-Setup.exe (VST3 + önálló program, 64 bit).
+            Telepítés és használat: lásd a README-t.
           files: |
             dist/KG16-Groovebox-Mac/KG16-Groovebox-Mac.pkg
             dist/KG16-Groovebox-Windows/KG16-Groovebox-Windows-Setup.exe
