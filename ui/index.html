@@ -4,79 +4,82 @@
 <title>KG-16 Groovebox</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@1,6..96,500;1,6..96,600&family=Barlow+Semi+Condensed:wght@500;600&family=Barlow:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one hardware faceplate — transport, master strip, pattern strip, drums, bass, generator — steps grouped in fours */
+/* Layout: German precision, French grace — a strict Braun-style grid of light key-steps and hairline panels; Didone italic titles, one blue accent, one orange signal */
 :root{
-  --panel:#d8d7d0; --panel-2:#c9c8c0; --ink:#1c1e21; --ink-soft:#585b5f;
-  --well:#2b2e32; --well-2:#3a3e43; --led:#ff4a2a;
-  --g1:#e4432c; --g2:#ef8a22; --g3:#f1c63a; --g4:#efe5cc;
-  --display:"Chakra Petch", "Arial Narrow", system-ui, sans-serif;
-  --body:"IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --body-bg:#e8e6e0; --panel:#f6f5f1; --panel-2:#efede8; --line:#d7d4cc;
+  --ink:#1c1f25; --ink-soft:#696c72; --paper:#f7f6f2; --graphite:#2b2f37;
+  --well:#dcdad3; --well-2:#c5c2ba;
+  --accent:#1f3db8; --accent-soft:#9db0ff; --signal:#e8571b; --led:#e8571b;
+  --g1:#1a338f; --g2:#2a49c4; --g3:#4f6ad8; --g4:#8798e2;
+  --display:"Barlow Semi Condensed", "DIN Alternate", "DIN Condensed", "Helvetica Neue", Arial, sans-serif;
+  --serif:"Bodoni Moda", "Didot", "Bodoni 72", "Bodoni MT", Georgia, serif;
+  --body:"Barlow", "Helvetica Neue", system-ui, -apple-system, sans-serif;
   --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
   color-scheme: light;
 }
 *{box-sizing:border-box}
-body{background:var(--panel);color:var(--ink);font-family:var(--body);
+body{background:var(--body-bg);color:var(--ink);font-family:var(--body);
   padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 40px}
 .wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-.top{display:flex;flex-wrap:wrap;align-items:center;gap:18px 24px;padding:14px 18px;background:var(--ink);color:var(--g4);border-radius:6px}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:18px 28px;padding:16px 22px;background:var(--graphite);color:var(--paper);border-radius:3px;border-bottom:3px solid var(--signal)}
 .logo{display:flex;flex-direction:column;line-height:1}
-.logo b{font-family:var(--display);font-weight:700;font-size:30px;letter-spacing:.04em}
-.logo span{font-family:var(--display);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--g3);margin-top:4px}
+.logo b{font-family:var(--serif);font-style:italic;font-weight:600;font-size:38px;letter-spacing:.01em}
+.logo span{font-family:var(--display);font-weight:500;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--signal);margin-top:6px}
 .transport{display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;margin-left:auto}
 .btn{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;
-  border:0;border-radius:4px;padding:10px 14px;cursor:pointer;background:var(--well-2);color:var(--g4)}
-.btn.play{background:var(--g1);color:#fff;min-width:96px}
-.btn.play[aria-pressed="true"]{background:var(--g3);color:var(--ink)}
-.btn.light{background:var(--panel);color:var(--ink);border:1px solid var(--well-2);padding:8px 12px;font-size:11px}
-.btn.light[aria-pressed="true"]{background:var(--ink);color:var(--g4)}
-.btn.go{background:var(--g2);color:var(--ink)}
-:is(.btn,.step,.knob,select,.vname,.mute,.seg button,.upl):focus-visible{outline:2px solid var(--g3);outline-offset:2px}
+  border:0;border-radius:2px;padding:10px 14px;cursor:pointer;background:var(--graphite);color:var(--paper)}
+.btn.play{background:var(--signal);color:#fff;min-width:96px}
+.btn.play[aria-pressed="true"]{background:var(--paper);color:var(--ink)}
+.btn.light{background:var(--paper);color:var(--ink);border:1px solid var(--line);padding:8px 12px;font-size:11px}
+.btn.light[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.btn.go{background:var(--accent);color:var(--paper)}
+:is(.btn,.step,.knob,select,.vname,.mute,.seg button,.upl):focus-visible{outline:2px solid var(--signal);outline-offset:2px}
 .field{display:flex;flex-direction:column;gap:4px}
 .field label,.plab{font-family:var(--display);font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
-.top .field label{color:var(--g3)}
+.top .field label{color:#a7abb3}
 .top .seg{border-color:var(--well-2)}
-.top .seg button{background:var(--well);color:var(--g4)}
-.top .seg button[aria-pressed="true"]{background:var(--g3);color:var(--ink)}
-select{font-family:var(--mono);font-size:13px;padding:7px 9px;border-radius:4px;border:1px solid var(--well-2);background:var(--well);color:var(--g4)}
-.top .knob .k-label,.top .knob .k-val{color:var(--g4)}
-.strip{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;padding:10px 14px;background:var(--panel-2);border-radius:6px}
+.top .seg button{background:#3a3f49;color:var(--paper)}
+.top .seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink)}
+select{font-family:var(--mono);font-size:13px;padding:7px 9px;border-radius:2px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+.top .knob .k-label,.top .knob .k-val{color:var(--paper)}
+.strip{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding:12px 18px;background:var(--panel);border:1px solid var(--line);border-radius:3px}
 .pg{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.vr{width:1px;align-self:stretch;background:var(--panel)}
-.panel{background:var(--panel-2);border-radius:6px;padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.vr{width:1px;align-self:stretch;background:var(--line)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:20px 22px;display:flex;flex-direction:column;gap:16px}
 .ph{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
-.ph h2{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.18em;text-transform:uppercase;margin:0}
+.ph h2{font-family:var(--serif);font-style:italic;font-weight:500;font-size:26px;letter-spacing:0;margin:0;line-height:1}
 .ph p{margin:0;color:var(--ink-soft);font-size:13px;max-width:80ch}
-.editor{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;padding:12px 14px;background:var(--panel);border-radius:4px}
+.editor{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;padding:14px 16px;background:var(--panel-2);border-radius:2px;border-top:1px solid var(--line)}
 .editor .ename{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;min-width:92px}
 .knobs{display:flex;flex-wrap:wrap;gap:10px 14px}
 .knob{display:flex;flex-direction:column;align-items:center;gap:2px;width:56px;cursor:ns-resize;touch-action:none;user-select:none;border-radius:4px}
 .knob.wide{width:72px}
 .knob svg{width:40px;height:40px;display:block}
 .k-track{fill:none;stroke:var(--well-2);stroke-width:3.5;stroke-linecap:round}
-.k-arc{fill:none;stroke:var(--g2);stroke-width:3.5;stroke-linecap:round}
-.knob.pan .k-arc{stroke:var(--g3)}
-.k-cap{fill:var(--well)}
-.k-ind{stroke:var(--g4);stroke-width:2.2;stroke-linecap:round}
+.k-arc{fill:none;stroke:var(--accent);stroke-width:3.5;stroke-linecap:round}
+.knob.pan .k-arc{stroke:var(--signal)}
+.k-cap{fill:var(--graphite)}
+.k-ind{stroke:var(--paper);stroke-width:2.2;stroke-linecap:round}
 .k-label{font-family:var(--display);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);white-space:nowrap}
 .k-val{font-family:var(--mono);font-size:10.5px;font-variant-numeric:tabular-nums;color:var(--ink)}
-.seg{display:flex;flex-wrap:wrap;border-radius:4px;overflow:hidden;border:1px solid var(--well-2)}
-.seg button{font-family:var(--display);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;border:0;padding:8px 10px;background:var(--panel);color:var(--ink);cursor:pointer;position:relative}
-.seg button+button{border-left:1px solid var(--panel-2)}
-.seg button[aria-pressed="true"]{background:var(--ink);color:var(--g4)}
+.seg{display:flex;flex-wrap:wrap;border-radius:2px;overflow:hidden;border:1px solid var(--line)}
+.seg button{font-family:var(--display);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;border:0;padding:8px 11px;background:var(--paper);color:var(--ink);cursor:pointer;position:relative}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .seg button:disabled{opacity:.35;cursor:default}
 .seg button.playing::after{content:"";position:absolute;left:6px;right:6px;bottom:2px;height:3px;border-radius:2px;background:var(--led)}
 #pages button{font-family:var(--mono);letter-spacing:0;font-variant-numeric:tabular-nums}
 .ab button{font-size:14px;min-width:38px}
-.panbox{display:flex;align-items:center;gap:8px;padding:6px 10px 4px;border-radius:4px;background:var(--panel-2)}
+.panbox{display:flex;align-items:center;gap:8px;padding:6px 10px 4px;border-radius:2px;background:var(--paper);border:1px solid var(--line)}
 .tgroups{display:flex;flex-wrap:wrap;gap:10px;flex-basis:100%}
 .gcol{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 .seg.sm button{padding:5px 7px;font-size:10px}
 .panbox .plab{align-self:center;writing-mode:vertical-rl;transform:rotate(180deg)}
 .fixed{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
 .upl{display:inline-flex;align-items:center;gap:8px;font-family:var(--display);font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
-  padding:8px 12px;border-radius:4px;background:var(--ink);color:var(--g4);cursor:pointer}
+  padding:8px 12px;border-radius:4px;background:var(--ink);color:var(--paper);cursor:pointer}
 .upl input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .smpinfo{font-family:var(--mono);font-size:11px;color:var(--ink-soft);max-width:36ch}
 .scroll{overflow-x:auto;padding-bottom:4px}
@@ -85,14 +88,14 @@ select{font-family:var(--mono);font-size:13px;padding:7px 9px;border-radius:4px;
 .rowlab{display:flex;align-items:center;gap:4px;min-width:0}
 .vname{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px;text-align:left;font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
   background:transparent;border:0;padding:5px 4px;border-radius:3px;cursor:pointer;color:var(--ink);white-space:nowrap;overflow:hidden}
-.vname small{font-family:var(--mono);font-size:10px;font-weight:400;letter-spacing:0;color:var(--ink-soft)}
-.vname[aria-current="true"]{background:var(--ink);color:var(--g4)}
-.vname[aria-current="true"] small{color:var(--g3)}
+.vname small{font-family:var(--mono);font-size:10px;font-weight:400;letter-spacing:0;color:var(--accent)}
+.vname[aria-current="true"]{background:var(--ink);color:var(--paper)}
+.vname[aria-current="true"] small{color:var(--accent-soft)}
 .mute{font-family:var(--mono);font-size:10px;width:22px;height:22px;flex:none;border-radius:3px;border:1px solid var(--well-2);background:transparent;color:var(--ink-soft);cursor:pointer;padding:0}
-.mute[aria-pressed="true"]{background:var(--g1);border-color:var(--g1);color:#fff}
+.mute[aria-pressed="true"]{background:var(--signal);border-color:var(--signal);color:#fff}
 .notelab{font-family:var(--mono);font-size:11px;color:var(--ink-soft);padding-left:6px}
 .notelab.root{color:var(--ink);font-weight:500}
-.step{height:24px;border-radius:3px;border:0;background:var(--well);cursor:pointer;padding:0;position:relative;box-shadow:inset 0 -2px 0 rgba(0,0,0,.35);touch-action:none}
+.step{height:24px;border-radius:2px;border:0;background:var(--well);cursor:pointer;padding:0;position:relative;box-shadow:inset 0 -2px 0 rgba(0,0,0,.12);touch-action:none}
 .step.sm{height:18px}
 .step[data-g="0"]{--gc:var(--g1)} .step[data-g="1"]{--gc:var(--g2)} .step[data-g="2"]{--gc:var(--g3)} .step[data-g="3"]{--gc:var(--g4)}
 .step[aria-pressed="true"]{background:var(--gc)}
@@ -102,12 +105,12 @@ select{font-family:var(--mono);font-size:13px;padding:7px 9px;border-radius:4px;
 /* swing: a swung step slides right by its real delay; the dashed frame marks the straight grid position */
 .step{transform:translateX(calc(var(--sx,0) * (100% + 4px)));transition:transform .08s ease-out}
 .step.sw[aria-pressed="true"]::before{content:"";position:absolute;top:0;bottom:0;width:100%;left:calc(var(--sx) * -1 * (100% + 4px));border:1px dashed var(--ink-soft);border-radius:3px;opacity:.55;pointer-events:none}
-.step .t{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:9.5px;color:var(--g4);pointer-events:none}
-.step[aria-pressed="true"] .t{color:var(--ink)}
-.step[aria-pressed="true"].pr .t{color:var(--g4);text-shadow:0 0 3px var(--well)}
-.led{height:6px;border-radius:3px;background:var(--well-2);margin:0 4px}
+.step .t{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:9.5px;color:var(--ink-soft);pointer-events:none}
+.step[aria-pressed="true"] .t{color:var(--paper)}
+.step[aria-pressed="true"].pr .t{color:var(--ink);text-shadow:0 0 3px var(--paper)}
+.led{height:4px;border-radius:2px;background:var(--well);margin:0 6px}
 .led.on{background:var(--led);box-shadow:0 0 6px var(--led)}
-.sep{grid-column:1 / -1;height:1px;background:var(--panel)}
+.sep{grid-column:1 / -1;height:1px;background:var(--line)}
 .gridbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
 .hint{font-size:12px;color:var(--ink-soft)}
 .foot{color:var(--ink-soft);font-size:13px;line-height:1.55;max-width:76ch;margin:0}
@@ -117,7 +120,7 @@ select{font-family:var(--mono);font-size:13px;padding:7px 9px;border-radius:4px;
 
 <div class="wrap">
   <header class="top">
-    <div class="logo"><b>KG-16</b><span>Groovebox · prototype</span></div>
+    <div class="logo"><b>KG-16</b><span>Groovebox · Kevin G Production</span></div>
     <div class="transport">
       <button class="btn play" id="play" aria-pressed="false">▶ Play</button>
       <div class="field"><label>Indítás</label><div class="seg" role="group" aria-label="Mi indítsa a hangokat" id="pmseg"></div></div>
