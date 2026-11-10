@@ -36,6 +36,9 @@ body{background:var(--panel);color:var(--ink);font-family:var(--body);
 .field{display:flex;flex-direction:column;gap:4px}
 .field label,.plab{font-family:var(--display);font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
 .top .field label{color:var(--g3)}
+.top .seg{border-color:var(--well-2)}
+.top .seg button{background:var(--well);color:var(--g4)}
+.top .seg button[aria-pressed="true"]{background:var(--g3);color:var(--ink)}
 select{font-family:var(--mono);font-size:13px;padding:7px 9px;border-radius:4px;border:1px solid var(--well-2);background:var(--well);color:var(--g4)}
 .top .knob .k-label,.top .knob .k-val{color:var(--g4)}
 .strip{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;padding:10px 14px;background:var(--panel-2);border-radius:6px}
@@ -117,6 +120,7 @@ select{font-family:var(--mono);font-size:13px;padding:7px 9px;border-radius:4px;
     <div class="logo"><b>KG-16</b><span>Groovebox · prototype</span></div>
     <div class="transport">
       <button class="btn play" id="play" aria-pressed="false">▶ Play</button>
+      <div class="field"><label>Indítás</label><div class="seg" role="group" aria-label="Mi indítsa a hangokat" id="pmseg"></div></div>
       <div class="knobs" id="tknobs"></div>
       <div class="field"><label for="preset">Minta</label><select id="preset"></select></div>
       <div class="field"><label for="kit">Dobkészlet</label><select id="kit"></select></div>
@@ -145,7 +149,6 @@ select{font-family:var(--mono);font-size:13px;padding:7px 9px;border-radius:4px;
   <div class="strip" aria-label="MIDI">
     <div class="field"><label for="midimode">MIDI bemenet</label><select id="midimode">
       <option value="drums">Dobok (GM kiosztás)</option><option value="bass">Basszus</option><option value="channels">1. csatorna dob, 2. csatorna basszus</option></select></div>
-    <div class="pg"><span class="plab">Belső szekvenszer</span><button class="btn light" id="seqd" aria-pressed="true">Dob</button><button class="btn light" id="seqb" aria-pressed="true">Basszus</button></div>
     <span class="hint" id="midihint"></span>
   </div>
 
@@ -180,12 +183,13 @@ select{font-family:var(--mono);font-size:13px;padding:7px 9px;border-radius:4px;
   </section>
 
   <section class="panel" aria-labelledby="gh">
-    <div class="ph"><h2 id="gh">Generátor</h2><p>Új ritmust ír a kiválasztott sávba az aktuális változat teljes hosszában.</p></div>
+    <div class="ph"><h2 id="gh">Generátor</h2><p>Új ritmust ír a kiválasztott sávba az aktuális változat teljes hosszában. A Visszaállítás visszahozza a sáv előző mintáját.</p></div>
     <div class="editor">
       <div class="field"><label for="gtarget">Sáv</label><select id="gtarget"></select></div>
       <div class="seg" role="group" aria-label="Generátor típusa" id="gmode"></div>
       <div class="knobs" id="gparams" style="gap:10px 12px"></div>
       <button class="btn go" id="ggo">Generálás</button>
+      <button class="btn light" id="gundo" disabled>Visszaállítás</button>
     </div>
   </section>
 
@@ -227,7 +231,7 @@ const BASS_DEFS=[
  {k:'glide',l:'Glide',min:.01,max:.2,v:.06,u:'s'},{k:'level',l:'Level',min:0,max:1,v:.55,u:'%'}];
 const BTRACK={swing:0,swGrid:1,satType:'off',sat:0,human:10};
 const B={wave:'sawtooth',key:9,eng:'303',...BTRACK}; BASS_DEFS.forEach(d=>B[d.k]=d.v);
-const T={bpm:128,master:.8,len:16,humanAll:25,satType:'tube',sat:20,midiMode:'drums',seqDrums:true,seqBass:true};
+const T={bpm:128,master:.8,len:16,humanAll:25,satType:'tube',sat:20,midiMode:'drums',playMode:NATIVE?'midi':'seq',seqDrums:!NATIVE,seqBass:!NATIVE};
 const TDEFS=[{k:'bpm',l:'BPM',min:60,max:180,v:128,u:'',step:1},{k:'master',l:'Volume',min:0,max:1,v:.8,u:'%'}];
 const HDEF={k:'humanAll',l:'Humanizer · mind',min:0,max:100,v:25,u:'p',step:1};
 const SDEF={k:'sat',l:'Mérték',min:0,max:100,v:20,u:'p',step:1};
@@ -603,7 +607,16 @@ function buildGen(){ const ts=$('gtarget'); ts.innerHTML=ROWS.map(([id,n])=>'<op
   seg($('gmode'),[['rnd','Véletlen'],['euc','Euklideszi'],['poly','Poliritmus']],GEN.mode,m=>{ GEN.mode=m; buildGen(); });
   const g=$('gparams'); g.innerHTML=''; GDEFS[GEN.mode].forEach(d=>g.append(knob(d,GEN,null))); }
 $('gtarget').onchange=e=>GEN.target=e.target.value;
+const UNDO=[];
+function syncUndo(){ const b=$('gundo'); b.disabled=!UNDO.length; const u=UNDO[UNDO.length-1];
+  b.textContent=u?'Visszaállítás · '+(u.target==='bass'?'Basszus':VO[u.target].name):'Visszaállítás'; }
+function undoGen(){ const u=UNDO.pop(); if(!u) return; const PP=PATS[u.pat];
+  if(u.target==='bass') PP.bass=u.data.bass; else { PP.d[u.target]=u.data.d; PP.prob[u.target]=u.data.prob; PP.rat[u.target]=u.data.rat; }
+  if(act!==u.pat){ act=u.pat; if(!playing) playA=u.pat; buildAB(); }
+  buildDrums(); buildBass(); syncUndo(); save(); }
 function generate(){ const PP=P(), len=T.len, G2=GEN;
+  UNDO.push({pat:act,target:G2.target,data:G2.target==='bass'?{bass:deep(PP.bass)}:{d:[...PP.d[G2.target]],prob:[...PP.prob[G2.target]],rat:[...PP.rat[G2.target]]}});
+  if(UNDO.length>30) UNDO.shift(); syncUndo();
   const hit=G2.mode==='rnd'?()=>Math.random()*100<G2.dens
     :G2.mode==='euc'?i=>{ const n=Math.max(2,Math.round(G2.n)), k=Math.min(n,Math.round(G2.k)), j=(((i-Math.round(G2.rot))%n)+n)%n; return (j*k)%n<k; }
     :i=>{ const N=Math.round(G2.every); return (((i-Math.round(G2.off))%N)+N)%N===0; };
@@ -614,8 +627,8 @@ function generate(){ const PP=P(), len=T.len, G2=GEN;
       else { s.on=false; s.acc=false; s.sl=false; s.oct=0; } }
     buildBass(); }
   else { const id=G2.target; for(let i=0;i<len;i++){ PP.d[id][i]=hit(i); PP.prob[id][i]=100; PP.rat[id][i]=1; } buildDrums(); }
-  save(); if(!playing){ start(); } }
-$('ggo').onclick=generate;
+  save(); if(!playing&&T.playMode==='seq'){ start(); } }
+$('ggo').onclick=generate; $('gundo').onclick=undoGen;
 
 /* ---------- user samples (IndexedDB, per viewer) ---------- */
 const idb=(()=>{ let dbp; const open=()=>dbp||(dbp=new Promise((res,rej)=>{ const q=indexedDB.open('kg16',1); q.onupgradeneeded=()=>q.result.createObjectStore('s'); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }));
@@ -651,11 +664,13 @@ const _bb=buildBass; buildBass=function(){ _bb(); swingVis('bass'); };
 function buildAll(){ cols=[]; buildMidi(); buildTransport(); buildMaster(); buildAB(); buildPager(); buildMode(); buildDrums(); buildEditor(); buildBassCtl(); buildBass(); buildGen(); ROWS.forEach(([id])=>cfgBus(id)); bassLive(); satCfg(); syncKitSelect(); }
 
 const MIDIHINT='C1 kick · C#1 rim · D1 snare · D#1 clap · F1–D2 tom · F#1 closed HH · A#1 open HH · C#2 cymbal · G#2 cowbell · B0 sub';
-function buildMidi(){ $('midimode').value=T.midiMode; $('seqd').setAttribute('aria-pressed',T.seqDrums); $('seqb').setAttribute('aria-pressed',T.seqBass);
-  $('midihint').textContent=(T.midiMode==='bass'?'Egymásba érő hangok = slide, erős leütés = accent.':T.midiMode==='channels'?'1. csatorna: '+MIDIHINT+'. 2. csatorna: basszus.':MIDIHINT)+(NATIVE?'':' (A MIDI bemenet a pluginban működik.)'); }
+const PMHINT={seq:'Szekvenszer: a DAW lejátszására (vagy a Play gombra) a belső minta pörög.',midi:'MIDI: csak a beérkező hangokra szól, például a piano roll C1 hangjára a kick.'};
+function setPlayMode(m){ T.playMode=m; T.seqDrums=T.seqBass=(m==='seq'); }
+function buildMidi(){ if(!T.playMode) setPlayMode(T.seqDrums||T.seqBass?'seq':'midi');
+  seg($('pmseg'),[['seq','Szekvenszer',PMHINT.seq],['midi','MIDI',PMHINT.midi]],T.playMode,m=>{ setPlayMode(m); buildMidi(); save(); });
+  $('midimode').value=T.midiMode;
+  $('midihint').textContent=(T.playMode==='seq'?'A belső szekvenszer fut; a MIDI-hangok emellett is megszólaltatják a hangokat. ':'')+(T.midiMode==='bass'?'Egymásba érő hangok = slide, erős leütés = accent.':T.midiMode==='channels'?'1. csatorna: '+MIDIHINT+'. 2. csatorna: basszus.':MIDIHINT)+(NATIVE?'':' (A MIDI bemenet a pluginban működik.)'); }
 $('midimode').onchange=e=>{ T.midiMode=e.target.value; buildMidi(); save(); };
-$('seqd').onclick=()=>{ T.seqDrums=!T.seqDrums; buildMidi(); save(); };
-$('seqb').onclick=()=>{ T.seqBass=!T.seqBass; buildMidi(); save(); };
 const KEY='kg16-state-v5';
 function stateObj(){ return {PATS,act,chain,mute,B,T,vo:Object.fromEntries(ROWS.map(([id])=>[id,{model:VO[id].model,p:VO[id].p,names:VO[id].names,paths:VO[id].paths}])),preset:$('preset').value}; }
 let saveT=null;
@@ -664,6 +679,7 @@ function save(){ syncKitSelect();
   try{ localStorage.setItem(KEY,JSON.stringify(stateObj())); }catch(e){} }
 function applyState(s){ if(!s||!s.PATS) return false;
   PATS=s.PATS; act=playA=s.act||'A'; chain=!!s.chain; mute=s.mute||{}; Object.assign(B,s.B); Object.assign(T,s.T);
+  if(s.T&&!s.T.playMode) T.playMode=(T.seqDrums||T.seqBass)?'seq':'midi';
   ROWS.forEach(([id])=>{ const o=s.vo&&s.vo[id]; if(o){ VO[id].model=o.model; Object.assign(VO[id].p,o.p); VO[id].names=o.names||[]; VO[id].paths=o.paths||[]; } }); $('preset').value=s.preset||'acid'; return true; }
 function load(){ if(NATIVE) return false; try{ return applyState(JSON.parse(localStorage.getItem(KEY)||localStorage.getItem('kg16-state-v4'))); }catch(e){ return false; } }
 if(NATIVE){
