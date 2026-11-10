@@ -1,0 +1,4 @@
+#!/bin/sh
+# Make macOS rescan Audio Units so the new instrument shows up without a restart.
+killall -9 AudioComponentRegistrar >/dev/null 2>&1 || true
+exit 0

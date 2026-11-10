@@ -1,0 +1,7 @@
+build/
+build-*/
+nuget/
+root/
+installer/Output/
+*.pkg
+.DS_Store
