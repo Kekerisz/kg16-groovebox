@@ -40,9 +40,11 @@ juce::WebBrowserComponent::Options KG16Editor::makeOptions()
         .withEventListener ("kgLoadSamples", [this] (const juce::var& v)
         {
             const auto id = v["id"].toString();
+            KG16Editor* self = this;
+            const juce::Component::SafePointer<KG16Editor> safe (self);
             for (int t = 0; t < kg::NT; ++t)
                 if (id == kg::TRACK_IDS[t])
-                    proc.chooseSamples (t, [safe = juce::Component::SafePointer<KG16Editor> (this), t]
+                    self->proc.chooseSamples (t, [safe, t]
                     {
                         if (safe == nullptr) return;
                         safe->sendState ("kgInit");          // the page picks up the new sample names
