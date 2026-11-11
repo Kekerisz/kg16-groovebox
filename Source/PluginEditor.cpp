@@ -77,11 +77,11 @@ void KG16Editor::sendState (const juce::Identifier& eventId)
 
 void KG16Editor::timerCallback()
 {
-    const int s = proc.engine.posStep.load(), pa = proc.engine.posPat.load();
+    const int s = proc.engine.posStep.load(), pa = proc.engine.posPat.load(), k = proc.engine.posAbs.load();
     const bool run = proc.engine.running.load();
-    if (s == lastStep && pa == lastPat && run == lastRun) return;
-    lastStep = s; lastPat = pa; lastRun = run;
+    if (s == lastStep && k == lastAbs && pa == lastPat && run == lastRun) return;
+    lastStep = s; lastAbs = k; lastPat = pa; lastRun = run;
     auto* o = new juce::DynamicObject();
-    o->setProperty ("s", s); o->setProperty ("pa", pa == 1 ? "B" : "A"); o->setProperty ("playing", run);
+    o->setProperty ("s", s); o->setProperty ("k", k); o->setProperty ("pa", pa == 1 ? "B" : "A"); o->setProperty ("playing", run);
     web.emitEventIfBrowserIsVisible ("kgPos", juce::var (o));
 }

@@ -190,14 +190,31 @@ struct Layer
 
 //==============================================================================
 // Saturation module shared by every track, the bass and the master: dry / FET / tube / transformer.
+// 4x oversampling for one nonlinearity: linear-interpolated upsampling, the curve at 4x rate,
+// a 4th-order Butterworth lowpass below the original Nyquist, then decimation.
+struct OS4
+{
+    float prev = 0; Biquad a, b;
+    void prepare (double sr) { a.setLinear (false, sr * .45, .5412, sr * 4); b.setLinear (false, sr * .45, 1.3066, sr * 4); a.reset(); b.reset(); prev = 0; }
+    template <class F> inline float run (float x, F&& fn)
+    {
+        float y = 0;
+        for (int i = 1; i <= 4; ++i) y = b.process (a.process (fn (prev + (x - prev) * (float) i * .25f)));
+        prev = x;
+        return y;
+    }
+};
+
 struct Saturator
 {
     int type = SAT_OFF; float k = .01f, post = 1, tk = 1, tk16 = 1, tk35 = 1, e1 = 1, e2 = 1;
     Biquad dc, xlo, xhi, xtop; double sr = 48000; bool ready = false;
+    OS4 os1, os2;
 
     void prepare (double sampleRate)
     {
         sr = sampleRate;
+        os1.prepare (sr); os2.prepare (sr);
         dc.set (Biquad::HP, 15, .7, 0, sr);
         xlo.setLinear (false, 180, .5, sr);
         xhi.setLinear (true, 180, .5, sr);
@@ -220,18 +237,16 @@ struct Saturator
         float y;
         switch (type)
         {
-            case SAT_FET: { const float c = cl (x); y = std::tanh (k * (c < 0 ? 1.12f * c : c)) / tk; break; }
+            case SAT_FET: y = os1.run (x, [this] (float v) { const float c = cl (v); return std::tanh (k * (c < 0 ? 1.12f * c : c)) / tk; }); break;
             case SAT_TUBE:
-            {
-                const float c = cl (x);
-                y = c >= 0 ? (1.f - std::exp (-k * c)) / e1 : -(1.f - std::exp (k * .7f * c)) / e2;
+                y = os1.run (x, [this] (float v) { const float c = cl (v); return c >= 0 ? (1.f - std::exp (-k * c)) / e1 : -(1.f - std::exp (k * .7f * c)) / e2; });
                 y = dc.process (y);
                 break;
-            }
             default:
             {
-                const float lo = cl (xlo.process (x)), hi = cl (xhi.process (x));
-                y = xtop.process (std::tanh (k * 1.6f * lo) / tk16 - std::tanh (k * .35f * hi) / tk35);
+                const float lo = os1.run (xlo.process (x), [this] (float v) { return std::tanh (k * 1.6f * cl (v)) / tk16; });
+                const float hi = os2.run (xhi.process (x), [this] (float v) { return std::tanh (k * .35f * cl (v)) / tk35; });
+                y = xtop.process (lo - hi);
             }
         }
         return y * post;
@@ -246,19 +261,24 @@ struct TrackParams
     float swing = 0; int swGrid = 1;
     int satType = SAT_OFF; float sat = 0, human = 25;
     bool mute = false;
+    int len = 0; bool out = false;          // own pattern length (0 = pattern length), separate output
     std::vector<std::shared_ptr<const SampleData>> samples;
 };
 struct BassStep { bool on = false; int n = 0; bool acc = false, sl = false; int oct = 0; };
 struct Pattern
 {
     bool d[NT][MAXS] {}; uint8_t prob[NT][MAXS] {}; uint8_t rat[NT][MAXS] {};
+    uint8_t vel[NT][MAXS] {}; int8_t nud[NT][MAXS] {}; bool flam[NT][MAXS] {};
+    uint8_t condA[NT][MAXS] {}, condB[NT][MAXS] {};        // play only on loop a of every b (0 = always)
+    float lockTune[NT][MAXS] {}, lockDec[NT][MAXS] {}, lockTone[NT][MAXS] {};   // NaN = not locked
     bool acc[MAXS] {}; BassStep bass[MAXS] {};
 };
 struct BassParams
 {
     int eng = E303; bool square = false; int key = 9;
-    float cutoff = 380, reso = .72f, envmod = .6f, decay = .28f, accent = .6f, drive = .4f, glide = .06f, level = .55f;
+    float cutoff = 380, reso = .72f, envmod = .6f, decay = .28f, accent = .6f, drive = .4f, glide = .06f, level = .3f;
     float swing = 0; int swGrid = 1; int satType = SAT_OFF; float sat = 0, human = 10;
+    int len = 0; bool out = false;
 };
 struct Snapshot
 {
@@ -268,7 +288,10 @@ struct Snapshot
     int len = 16, act = 0; bool chain = false;
     float bpm = 128, master = .8f; int satType = SAT_TUBE; float sat = 20;
     int midiMode = MIDI_DRUMS; bool seqDrums = true, seqBass = true;
+    float drumVol = 1, bassVol = .6f, drumComp = 25, sc = 20, scRel = 160, accDrive = 30;
 };
+// separate outputs: per drum track [0..NT-1] and the bass [NT]; nullptr = mixed into the main output
+struct AuxOuts { float* L[NT + 1] {}; float* R[NT + 1] {}; };
 
 //==============================================================================
 struct BassVoice
@@ -372,12 +395,15 @@ struct Track
     void chokeAll (double sr) { for (auto& l : layers) if (l.active) l.chokeC = (float) std::exp (-1.0 / (.008 * sr)); }
 };
 
+// per-step parameter lock (NaN = use the track's own value)
+struct Lock { float tune = NAN, dec = NAN, tone = NAN; };
+
 //==============================================================================
 class Engine
 {
 public:
-    static constexpr int GRID_LATENCY_MS = 25;
-    std::atomic<int> posStep { -1 }, posPat { 0 };
+    static constexpr int GRID_LATENCY_MS = 60;   // room for early hits: micro-timing, flam and the humanizer
+    std::atomic<int> posStep { -1 }, posPat { 0 }, posAbs { 0 };
     std::atomic<bool> running { false }, internalPlay { false };
 
     void prepare (double sampleRate)
@@ -388,6 +414,7 @@ public:
         bass.prepare (sr); masterSat.prepare (sr); masterSatR.prepare (sr);
         events.clear(); events.reserve (4096);
         compEnv = 0; compAtk = (float) std::exp (-1 / (.003 * sr)); compRel = (float) std::exp (-1 / (.15 * sr));
+        dcEnv = 0; dcAtk = (float) std::exp (-1 / (.01 * sr)); dcRel = (float) std::exp (-1 / (.12 * sr)); duckLevel = 0; duckRising = false;
         wasRunning = false; now = 0;
     }
     int getLatencySamples() const { return latency; }
@@ -398,7 +425,7 @@ public:
 
     struct HostPos { bool playing = false; double ppq = 0, bpm = 120; };
 
-    void process (const Snapshot& S, float* L, float* R, int n, const HostPos& host, const juce::MidiBuffer& midi)
+    void process (const Snapshot& S, float* L, float* R, int n, const HostPos& host, const juce::MidiBuffer& midi, const AuxOuts* aux = nullptr)
     {
         cur = &S;
         bass.P = &S.bass;
@@ -463,18 +490,39 @@ public:
                 const Ev e = events.back(); events.pop_back();
                 execute (e);
             }
-            float l = 0, r = 0;
+            float dl = 0, dr = 0;
             for (int ti = 0; ti < NT; ++ti)
             {
                 const float y = renderTrack (ti);
-                if (y == 0) continue;
                 const auto& p = S.tr[ti];
                 const bool centre = ti == KICK || ti == SNARE || ti == SUB;
-                l += y * (centre ? 1 : p.panL);
-                r += y * (centre ? 1 : p.panR);
+                const float yl = y * (centre ? 1 : p.panL), yr = y * (centre ? 1 : p.panR);
+                if (aux && aux->L[ti]) { aux->L[ti][i] = yl; aux->R[ti][i] = yr; continue; }   // own DAW channel
+                dl += yl; dr += yr;
             }
-            const float b = bass.process (now);
-            l += b; r += b;
+            // drum bus: compressor (soft knee, auto make-up) and volume
+            {
+                const float a = S.drumComp / 100.f;
+                if (a > 0)
+                {
+                    const float pk = std::max (std::abs (dl), std::abs (dr));
+                    dcEnv = pk > dcEnv ? dcAtk * dcEnv + (1 - dcAtk) * pk : dcRel * dcEnv + (1 - dcRel) * pk;
+                    const float thr = -a * 30, ratio = 1 + a * 5, x = 20.f * std::log10 (dcEnv + 1.0e-9f), knee = 6;
+                    float gr = 0;
+                    if (2 * (x - thr) > knee) gr = (thr + (x - thr) / ratio) - x;
+                    else if (2 * (x - thr) > -knee) { const float d = x - thr + knee / 2; gr = (1 / ratio - 1) * d * d / (2 * knee); }
+                    const float g = std::pow (10.f, (gr + (-thr) * (1 - 1 / ratio) * .4f) / 20.f);
+                    dl *= g; dr *= g;
+                }
+                dl *= S.drumVol; dr *= S.drumVol;
+            }
+            // bass: ducked by the kick (sidechain), then its volume
+            if (duckRising) { duckLevel += (duckTarget - duckLevel) * duckAtkC; if (duckLevel >= duckTarget * .98f) duckRising = false; }
+            else duckLevel *= duckRelC;
+            const float b = bass.process (now) * (1 - duckLevel) * S.bassVol;
+            float l = dl, r = dr;
+            if (aux && aux->L[NT]) { aux->L[NT][i] = b; aux->R[NT][i] = b; }
+            else { l += b; r += b; }
             l *= S.master; r *= S.master;
             l = masterSat.process (l); r = masterSatR.process (r);
             // master bus compressor (soft knee) with make-up gain, then a soft safety clip
@@ -513,6 +561,16 @@ private:
     int64_t nextK = 0, firstK = 0; int playPat = 0, queued = -1, lastAct = 0;
     int midiBassHeld = 0;
     float compEnv = 0, compAtk = 0, compRel = 0;
+    float dcEnv = 0, dcAtk = 0, dcRel = 0;
+    float duckLevel = 0, duckTarget = 0, duckAtkC = .3f, duckRelC = .999f; bool duckRising = false;
+    void duck()
+    {
+        const auto& S = *cur;
+        if (S.sc <= 0) return;
+        duckTarget = S.sc / 100.f * .9f; duckRising = true;
+        duckAtkC = 1.f - (float) std::exp (-1.0 / (.002 * sr));
+        duckRelC = (float) std::exp (-1.0 / (std::max (.01, S.scRel / 3000.0) * sr));
+    }
 
     void push (const Ev& e) { if (events.size() < 4000) { events.push_back (e); std::push_heap (events.begin(), events.end(), later); } }
 
@@ -578,33 +636,44 @@ private:
         }
         const auto& P = S.pat[playPat];
         const int64_t base = tNom + latency;
-        push ({ base, EV_POS, playPat, 0, 0, 0, 0, s, {}, 0, 0, false, false });
+        push ({ base, EV_POS, playPat, 0, 0, 0, 0, s, {}, (int) (k & 0x7fffffff), 0, false, false });
 
         drift = std::clamp (drift * .97f + rng.gauss() * .015f, -.15f, .15f);
-        const float a = P.acc[s] ? 1.f : .7f;
+        const bool accOn = P.acc[s];
+        const float boost = accOn ? 1.f + S.accDrive / 100.f * 1.5f : 1.f;   // accent bus: hotter into the saturation
         if (S.seqDrums)
             for (int ti = 0; ti < NT; ++ti)
             {
                 const auto& tp = S.tr[ti];
-                if (! P.d[ti][s] || tp.mute || rng.uni() * 100.f >= P.prob[ti][s]) continue;
-                const int nr = std::max (1, (int) P.rat[ti][s]);
-                const double tv = (double) base + swingOff (tp.swing, tp.swGrid, s, sd) * sr;
+                const int tl = tp.len > 0 ? std::min (tp.len, MAXS) : len;
+                const int st = (int) (((k % tl) + tl) % tl);
+                const int64_t iter = (k >= 0 ? k : k - tl + 1) / tl;
+                if (! P.d[ti][st] || tp.mute) continue;
+                if (P.condB[ti][st] > 0 && (int) (((iter % P.condB[ti][st]) + P.condB[ti][st]) % P.condB[ti][st]) != P.condA[ti][st] - 1) continue;
+                if (rng.uni() * 100.f >= P.prob[ti][st]) continue;
+                const float a = (accOn ? 1.f : .7f) * P.vel[ti][st] / 100.f * boost;
+                const int nr = std::max (1, (int) P.rat[ti][st]);
+                const Lock lk { P.lockTune[ti][st], P.lockDec[ti][st], P.lockTone[ti][st] };
+                const double tv = (double) base + (swingOff (tp.swing, tp.swGrid, st, sd) + P.nud[ti][st] / 1000.0) * sr;
+                if (P.flam[ti][st]) trigDrum (ti, a * .45f, st, (int64_t) (tv - .02 * sr), false, 0, lk);
                 for (int j = 0; j < nr; ++j)
-                    trigDrum (ti, a * (j ? .78f : 1.f), s, (int64_t) (tv + j * sd / nr * sr), false);
+                    trigDrum (ti, a * (j ? .78f : 1.f), st, (int64_t) (tv + j * sd / nr * sr), false, 0, lk);
             }
         if (S.seqBass && midiBassHeld == 0)
         {
             const float hb = S.bass.human / 100.f;
-            Ev e {}; e.type = EV_BASS_STEP; e.bs = P.bass[s];
+            const int bl = S.bass.len > 0 ? std::min (S.bass.len, MAXS) : len;
+            const int sb = (int) (((k % bl) + bl) % bl);
+            Ev e {}; e.type = EV_BASS_STEP; e.bs = P.bass[sb];
             e.gate = (int) (sd * sr);
             e.amp = std::max (.6f, 1 + rng.gauss() * .08f * hb);
-            e.t = std::max (now, (int64_t) (base + (swingOff (S.bass.swing, S.bass.swGrid, s, sd) + rng.gauss() * .004 * hb) * sr));
+            e.t = std::max (now, (int64_t) (base + (swingOff (S.bass.swing, S.bass.swGrid, sb, sd) + rng.gauss() * .004 * hb) * sr));
             push (e);
         }
     }
 
     // ---- humanize and schedule one drum hit
-    void trigDrum (int ti, float a, int s, int64_t t, bool immediate, float extraTune = 0)
+    void trigDrum (int ti, float a, int s, int64_t t, bool immediate, float extraTune = 0, Lock lk = {})
     {
         const auto& p = cur->tr[ti];
         struct H { float t, bias, v, p, d, b; };
@@ -612,7 +681,8 @@ private:
                                    { 8, 2, .2f, 20, .1f, .2f }, { 10, 3, .2f, 25, .12f, .15f }, { 7, -2, .25f, 20, .2f, .3f },
                                    { 7, -1, .2f, 20, .25f, .25f }, { 9, 0, .2f, 30, .25f, .35f }, { 6, 0, .15f, 10, .08f, .1f },
                                    { 3, 0, .06f, 4, .05f, 0 } };
-        float r = std::pow (2.f, (p.tune + extraTune) / 12.f), D = p.decay, Tn = p.tone, aa = a;
+        float r = std::pow (2.f, ((std::isnan (lk.tune) ? p.tune : lk.tune) + extraTune) / 12.f);
+        float D = p.decay * (std::isnan (lk.dec) ? 1.f : lk.dec / 100.f), Tn = std::isnan (lk.tone) ? p.tone : lk.tone / 100.f, aa = a;
         double tt = (double) t;
         const float h = std::min (1.f, p.human / 100.f);
         if (h > 0)
@@ -626,7 +696,7 @@ private:
             Tn = std::clamp (Tn + rng.gauss() * Hh.b * h + (vm - 1) * .5f, 0.f, 1.f);
             if (! immediate)
             {
-                const double off = std::clamp ((double) (rng.gauss() * Hh.t + Hh.bias) * h / 1000.0, -(double) GRID_LATENCY_MS / 1000.0 + .001, .05);
+                const double off = std::clamp ((double) (rng.gauss() * Hh.t + Hh.bias) * h / 1000.0, -.03, .05);
                 tt += off * sr;
             }
         }
@@ -699,8 +769,8 @@ private:
     {
         switch (e.type)
         {
-            case EV_POS: posStep.store (e.step); posPat.store (e.track); break;
-            case EV_DRUM: synth (e.track, e.amp, e.r, e.D, e.Tn); break;
+            case EV_POS: posStep.store (e.step); posPat.store (e.track); posAbs.store (e.gate); break;
+            case EV_DRUM: if (e.track == KICK) duck(); synth (e.track, e.amp, e.r, e.D, e.Tn); break;
             case EV_BASS_STEP: bass.vel = e.amp; playBassStep (e.bs, e.t, e.gate); bass.vel = 1; break;
             case EV_BASS_NOTE: bass.vel = 1; bass.note (e.freq, e.acc, e.legato, e.t, -1); break;
             case EV_BASS_OFF: bass.release (.012f); break;

@@ -19,7 +19,7 @@ private:
 
     KG16Processor& proc;
     juce::WebBrowserComponent web;
-    int lastStep = -2, lastPat = -1; bool lastRun = false;
+    int lastStep = -2, lastAbs = -1, lastPat = -1; bool lastRun = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (KG16Editor)
 };

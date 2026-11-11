@@ -24,16 +24,37 @@ inline void readPattern (const juce::var& P, Pattern& out)
 {
     out = Pattern();
     for (int t = 0; t < NT; ++t)
-        for (int s = 0; s < MAXS; ++s) { out.prob[t][s] = 100; out.rat[t][s] = 1; }
+        for (int s = 0; s < MAXS; ++s)
+        {
+            out.prob[t][s] = 100; out.rat[t][s] = 1; out.vel[t][s] = 100;
+            out.lockTune[t][s] = out.lockDec[t][s] = out.lockTone[t][s] = NAN;
+        }
     if (! P.isObject()) return;
     for (int t = 0; t < NT; ++t)
     {
-        const auto d = P["d"][TRACK_IDS[t]], pr = P["prob"][TRACK_IDS[t]], rt = P["rat"][TRACK_IDS[t]];
+        const auto id = TRACK_IDS[t];
+        const auto d = P["d"][id], pr = P["prob"][id], rt = P["rat"][id], ve = P["vel"][id], nu = P["nud"][id], fl = P["flam"][id],
+                   co = P["cond"][id], lt = P["lt"][id], ld = P["ld"][id], lc = P["lc"][id];
+        auto has = [] (const juce::var& a, int s) { return a.isArray() && s < a.size(); };
+        auto lockOf = [&has] (const juce::var& a, int s) { return has (a, s) && (a[s].isDouble() || a[s].isInt() || a[s].isInt64()) ? (float) (double) a[s] : NAN; };
         for (int s = 0; s < MAXS; ++s)
         {
-            if (d.isArray() && s < d.size()) out.d[t][s] = (bool) d[s];
-            if (pr.isArray() && s < pr.size()) out.prob[t][s] = (uint8_t) juce::jlimit (0, 100, (int) pr[s]);
-            if (rt.isArray() && s < rt.size()) out.rat[t][s] = (uint8_t) juce::jlimit (1, 4, (int) rt[s]);
+            if (has (d, s)) out.d[t][s] = (bool) d[s];
+            if (has (pr, s)) out.prob[t][s] = (uint8_t) juce::jlimit (0, 100, (int) pr[s]);
+            if (has (rt, s)) out.rat[t][s] = (uint8_t) juce::jlimit (1, 8, (int) rt[s]);
+            if (has (ve, s)) out.vel[t][s] = (uint8_t) juce::jlimit (0, 100, (int) ve[s]);
+            if (has (nu, s)) out.nud[t][s] = (int8_t) juce::jlimit (-30, 30, (int) nu[s]);
+            if (has (fl, s)) out.flam[t][s] = (bool) fl[s];
+            if (has (co, s) && co[s].isString())
+            {
+                const auto c = co[s].toString();
+                if (c.containsChar (':'))
+                {
+                    const int a = c.upToFirstOccurrenceOf (":", false, false).getIntValue(), b = c.fromFirstOccurrenceOf (":", false, false).getIntValue();
+                    if (a >= 1 && b >= 1 && a <= b) { out.condA[t][s] = (uint8_t) a; out.condB[t][s] = (uint8_t) b; }
+                }
+            }
+            out.lockTune[t][s] = lockOf (lt, s); out.lockDec[t][s] = lockOf (ld, s); out.lockTone[t][s] = lockOf (lc, s);
         }
     }
     const auto acc = P["acc"], bass = P["bass"];
@@ -67,6 +88,8 @@ inline std::unique_ptr<Snapshot> snapshotFromJson (const juce::var& st,
     const auto mm = str (T, "midiMode", "drums");
     S->midiMode = mm == "bass" ? MIDI_BASS : mm == "channels" ? MIDI_CHANNELS : MIDI_DRUMS;
     S->seqDrums = flag (T, "seqDrums", true); S->seqBass = flag (T, "seqBass", true);
+    S->drumVol = num (T, "drumVol", 1); S->bassVol = num (T, "bassVol", .6f); S->drumComp = num (T, "drumComp", 25);
+    S->sc = num (T, "sc", 20); S->scRel = num (T, "scRel", 160); S->accDrive = num (T, "accDrive", 30);
 
     const auto mute = st["mute"], vo = st["vo"];
     for (int t = 0; t < NT; ++t)
@@ -79,6 +102,7 @@ inline std::unique_ptr<Snapshot> snapshotFromJson (const juce::var& st,
         tp.swing = num (p, "swing", 0); tp.swGrid = juce::jlimit (1, 4, (int) num (p, "swGrid", 1));
         tp.satType = satFrom (str (p, "satType", "off")); tp.sat = num (p, "sat", 0); tp.human = num (p, "human", 25);
         tp.mute = flag (mute, TRACK_IDS[t], false);
+        tp.len = juce::jlimit (0, MAXS, (int) num (p, "len", 0)); tp.out = flag (p, "out", false);
         tp.samples = samples[t];
     }
 
@@ -88,9 +112,10 @@ inline std::unique_ptr<Snapshot> snapshotFromJson (const juce::var& st,
     b.square = str (B, "wave", "sawtooth") == "square";
     b.key = juce::jlimit (0, 11, (int) num (B, "key", 9));
     b.cutoff = num (B, "cutoff", 380); b.reso = num (B, "reso", .72f); b.envmod = num (B, "envmod", .6f); b.decay = num (B, "decay", .28f);
-    b.accent = num (B, "accent", .6f); b.drive = num (B, "drive", .4f); b.glide = num (B, "glide", .06f); b.level = num (B, "level", .55f);
+    b.accent = num (B, "accent", .6f); b.drive = num (B, "drive", .4f); b.glide = num (B, "glide", .06f); b.level = num (B, "level", .3f);
     b.swing = num (B, "swing", 0); b.swGrid = juce::jlimit (1, 4, (int) num (B, "swGrid", 1));
     b.satType = satFrom (str (B, "satType", "off")); b.sat = num (B, "sat", 0); b.human = num (B, "human", 10);
+    b.len = juce::jlimit (0, MAXS, (int) num (B, "len", 0)); b.out = flag (B, "out", false);
     return S;
 }
 } // namespace kg

@@ -40,6 +40,19 @@ Ha `v` kezdetű címkét adsz egy feltöltésnek (például `v1.0.0`), a két te
 
 Ableton alatt a legegyszerűbb, ha két példányt teszel be: az egyik MIDI módja „Dobok”, a másiké „Basszus”.
 
+## Lépésszerkesztés és keverés
+
+A dobrács feletti **Lépés szerkesztése** sorban választod ki, mit állítasz a lépéseken:
+- **Erő** és **Esély** (0–100%), **Mikro** (±30 ms): húzd fel-le a lépést, dupla kattintás visszaállítja.
+- **Ismétlés** (1–8 ütés), **Feltétel** (1:2, 1:4 … csak a megadott körökben szól), **Flam** (halk előütés 20 ms-mal előtte): kattintással.
+- **P·Hang**, **P·Lecseng.**, **P·Szín**: parameter lock, a lépés saját hangolása, lecsengése és hangszíne. Dupla kattintás feloldja.
+
+Hangonként (a hang nevére kattintva): swing (1/4, 1/8, 1/16), szaturáció (FET, cső, trafó), Humanizer, saját **Hossz** (poliritmus, például 15 lépéses hi-hat a 16-os kick mellett) és a pluginban **Kimenet: Külön**.
+
+**Keverő:** dobok és basszus hangereje, dobbusz-kompresszor, accent drive (a kiemelt ütések erősebben hajtják a szaturációt), sidechain (a kick lenyomja a basszust) és annak elengedése.
+
+**Külön kimenetek:** egy hangnál válaszd a **Külön** kimenetet, és a DAW-ban kapcsold be a plugin megfelelő kimenetét (Ableton: egy új audiosáv bemeneténél a KG-16 sávját és a hang nevét válaszd; Cubase: az instrument-sáv kimeneti listájában aktiváld). A különválasztott hang kimarad a fő kimenetből.
+
 ## Saját minták
 
 A **Saját** karakternél a **Minták feltöltése** gomb fájlválasztót nyit; egy hanghoz több fájl is kijelölhető (WAV, AIFF, FLAC, MP3). A plugin a fájlok helyét a projektbe menti, ezért a mintákat ne töröld és ne helyezd át, különben a projekt megnyitásakor nem találja őket.

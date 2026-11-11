@@ -39,6 +39,7 @@ public:
     kg::Engine engine;
 
 private:
+    static BusesProperties makeBuses();
     void timerCallback() override;
     void rebuildSnapshot();
     void reloadSamplesFromState();

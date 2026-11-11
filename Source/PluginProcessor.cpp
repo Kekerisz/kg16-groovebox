@@ -1,8 +1,17 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+juce::AudioProcessor::BusesProperties KG16Processor::makeBuses()
+{
+    // main stereo output + an optional stereo output per drum voice and one for the bass
+    auto b = BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true);
+    const char* names[kg::NT + 1] = { "Kick", "Snare", "Clap", "Rim", "Tom", "Closed HH", "Open HH", "Cymbal", "Cowbell", "Sub", "Bass" };
+    for (auto* n : names) b = b.withOutput (n, juce::AudioChannelSet::stereo(), false);
+    return b;
+}
+
 KG16Processor::KG16Processor()
-    : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+    : AudioProcessor (makeBuses())
 {
     formats.registerBasicFormats();
     // Before the UI has ever been opened: no pattern, every voice ready for MIDI from the piano roll.
@@ -25,7 +34,13 @@ void KG16Processor::prepareToPlay (double sampleRate, int)
 
 bool KG16Processor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo()) return false;
+    for (int i = 1; i < layouts.outputBuses.size(); ++i)
+    {
+        const auto& set = layouts.outputBuses.getReference (i);
+        if (! set.isDisabled() && set != juce::AudioChannelSet::stereo()) return false;
+    }
+    return true;
 }
 
 void KG16Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -47,9 +62,22 @@ void KG16Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         }
 
     buffer.clear();
-    auto* L = buffer.getWritePointer (0);
-    auto* R = buffer.getWritePointer (buffer.getNumChannels() > 1 ? 1 : 0);
-    engine.process (S, L, R, buffer.getNumSamples(), host, midi);
+    auto main = getBusBuffer (buffer, false, 0);
+    auto* L = main.getWritePointer (0);
+    auto* R = main.getWritePointer (main.getNumChannels() > 1 ? 1 : 0);
+
+    // a voice goes to its own output only when the user picked "Külön" and the DAW enabled that output
+    kg::AuxOuts aux;
+    for (int t = 0; t <= kg::NT; ++t)
+    {
+        const bool wants = t < kg::NT ? S.tr[t].out : S.bass.out;
+        auto* bus = getBus (false, t + 1);
+        if (! wants || bus == nullptr || ! bus->isEnabled()) continue;
+        auto ab = getBusBuffer (buffer, false, t + 1);
+        if (ab.getNumChannels() < 2) continue;
+        aux.L[t] = ab.getWritePointer (0); aux.R[t] = ab.getWritePointer (1);
+    }
+    engine.process (S, L, R, buffer.getNumSamples(), host, midi, &aux);
     midi.clear();
 }
 

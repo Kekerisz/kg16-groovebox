@@ -4,6 +4,7 @@
 #include "../Source/State.h"
 
 using namespace kg;
+static juce::AudioBuffer<float>& kickBuf() { static juce::AudioBuffer<float> b (2, 8 * 48000 + 256); return b; }
 
 static void stats (const char* label, const juce::AudioBuffer<float>& b)
 {
@@ -69,9 +70,18 @@ int main (int argc, char** argv)
             if (beat == 24) midi.addEvent (juce::MidiMessage::noteOff (1, 45), 0);
             if (beat == 40) midi.addEvent (juce::MidiMessage::noteOff (1, 52), 0);
         }
-        e.process (*S, out.getWritePointer (0, pos), out.getWritePointer (1, pos), n, host, midi);
+        // "aux": the kick goes to its own output, so the main mix must lose it
+        AuxOuts aux;
+        if (mode == "aux") { aux.L[KICK] = kickBuf().getWritePointer (0, pos); aux.R[KICK] = kickBuf().getWritePointer (1, pos); }
+        e.process (*S, out.getWritePointer (0, pos), out.getWritePointer (1, pos), n, host, midi, &aux);
     }
     stats (mode.toRawUTF8(), out);
+    if (mode == "aux")
+    {
+        juce::AudioBuffer<float> k (2, total);
+        for (int c = 0; c < 2; ++c) k.copyFrom (c, 0, kickBuf(), c, 0, total);
+        stats ("  kick on its own output", k);
+    }
 
     // per-model check: each kit plays one hit of every voice
     if (mode == "seq")
